@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datum.se – Dagens datum, vecka och kalender</title>
+<meta name="description" content="Se dagens datum, vilken vecka det är och en enkel kalender direkt.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%232563eb'/%3E%3Ctext x='50' y='70' font-size='58' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='white'%3E18%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --text:#14171c; --muted:#6b7380; --line:#e5e8ec;
+  --accent:#2563eb; --accent-text:#fff; --weekend:#c2410c; --other:#b3b9c2;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1115; --card:#181b21; --text:#eceff3; --muted:#8c94a1; --line:#272b33;
+    --accent:#3b82f6; --accent-text:#fff; --weekend:#fb923c; --other:#515866;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+.hero{text-align:center;padding:20px 0 12px}
+.weekday{font-size:1.1rem;color:var(--muted);text-transform:capitalize}
+.date{font-size:clamp(2rem,9vw,3rem);font-weight:700;letter-spacing:-.02em;margin:2px 0}
+.facts{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.95rem}
+.pill b{font-variant-numeric:tabular-nums}
+.pill.week{background:var(--accent);border-color:var(--accent);color:var(--accent-text);font-weight:600}
+.clock{margin-top:10px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:.95rem}
+.cal{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:18px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-title{font-weight:600;text-transform:capitalize}
+.nav{display:flex;gap:6px}
+button{
+  font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);
+  border-radius:8px;padding:4px 10px;cursor:pointer;
+}
+button:hover{background:var(--bg)}
+table{width:100%;border-collapse:collapse;table-layout:fixed;text-align:center}
+th{font-size:.75rem;color:var(--muted);font-weight:500;padding:6px 0}
+td{padding:2px 0;font-variant-numeric:tabular-nums}
+td span{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%}
+td.wk{color:var(--muted);font-size:.8rem}
+td.other{color:var(--other)}
+td.sat,td.sun{color:var(--weekend)}
+td.other.sat,td.other.sun{color:var(--other)}
+td.today span{background:var(--accent);color:var(--accent-text);font-weight:700}
+.ad{margin:22px auto 0;min-height:100px;text-align:center}
+footer{text-align:center;color:var(--muted);font-size:.8rem;margin-top:24px}
+</style>
+</head>
+<body>
+<main>
+  <section class="hero" aria-live="polite">
+    <div class="weekday" id="weekday"></div>
+    <h1 class="date" id="date"></h1>
+    <div class="facts">
+      <span class="pill week">Vecka <b id="week"></b></span>
+      <span class="pill">Dag <b id="doy"></b> av <b id="diy"></b></span>
+    </div>
+    <div class="clock" id="clock"></div>
+    <noscript>Aktivera JavaScript för att se dagens datum och kalender.</noscript>
+  </section>
+
+  <section class="cal" aria-label="Kalender">
+    <div class="cal-head">
+      <div class="cal-title" id="cal-title"></div>
+      <div class="nav">
+        <button id="prev" aria-label="Föregående månad">‹</button>
+        <button id="today" aria-label="Gå till idag">Idag</button>
+        <button id="next" aria-label="Nästa månad">›</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr>
+        <th>v.</th><th>Mån</th><th>Tis</th><th>Ons</th><th>Tors</th><th>Fre</th><th>Lör</th><th>Sön</th>
+      </tr></thead>
+      <tbody id="cal-body"></tbody>
+    </table>
+  </section>
+
+  <!-- Plats för annons. Lägg annonskoden här och ladda den asynkront. -->
+  <div class="ad" id="ad"></div>
+
+  <footer>datum.se</footer>
+</main>
+
+<script>
+(function(){
+  var DAYS=["söndag","måndag","tisdag","onsdag","torsdag","fredag","lördag"];
+  var MONTHS=["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+  var $=function(id){return document.getElementById(id)};
+
+  function isoWeek(d){
+    var t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    var day=t.getUTCDay()||7;
+    t.setUTCDate(t.getUTCDate()+4-day);
+    var y0=new Date(Date.UTC(t.getUTCFullYear(),0,1));
+    return Math.ceil(((t-y0)/86400000+1)/7);
+  }
+  function dayOfYear(d){
+    var s=new Date(d.getFullYear(),0,0);
+    return Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-s)/86400000);
+  }
+  function daysInYear(y){return (y%4===0&&y%100!==0)||y%400===0?366:365}
+  function same(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+  function pad(n){return n<10?"0"+n:""+n}
+
+  var view=new Date(); view.setDate(1);
+
+  function renderHero(){
+    var n=new Date();
+    $("weekday").textContent=DAYS[n.getDay()];
+    $("date").textContent=n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear();
+    $("week").textContent=isoWeek(n);
+    $("doy").textContent=dayOfYear(n);
+    $("diy").textContent=daysInYear(n.getFullYear());
+    document.title="Vecka "+isoWeek(n)+" – "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear()+" | Datum.se";
+  }
+  function renderClock(){
+    var n=new Date();
+    $("clock").textContent=pad(n.getHours())+":"+pad(n.getMinutes())+":"+pad(n.getSeconds());
+  }
+  function renderCal(){
+    var y=view.getFullYear(), m=view.getMonth(), now=new Date();
+    $("cal-title").textContent=MONTHS[m]+" "+y;
+    var offset=(new Date(y,m,1).getDay()+6)%7;
+    var total=offset+new Date(y,m+1,0).getDate();
+    var rows=Math.ceil(total/7);
+    var html="";
+    for(var r=0;r<rows;r++){
+      var mon=new Date(y,m,1-offset+r*7);
+      html+='<tr><td class="wk">'+isoWeek(mon)+'</td>';
+      for(var c=0;c<7;c++){
+        var d=new Date(y,m,1-offset+r*7+c);
+        var cls=[];
+        if(d.getMonth()!==m)cls.push("other");
+        if(c===5)cls.push("sat");
+        if(c===6)cls.push("sun");
+        if(same(d,now))cls.push("today");
+        html+='<td class="'+cls.join(" ")+'"><span>'+d.getDate()+'</span></td>';
+      }
+      html+='</tr>';
+    }
+    $("cal-body").innerHTML=html;
+  }
+
+  $("prev").onclick=function(){view.setMonth(view.getMonth()-1);renderCal()};
+  $("next").onclick=function(){view.setMonth(view.getMonth()+1);renderCal()};
+  $("today").onclick=function(){view=new Date();view.setDate(1);renderCal()};
+
+  renderHero(); renderClock(); renderCal();
+
+  var lastDay=new Date().getDate();
+  setInterval(function(){
+    renderClock();
+    var d=new Date().getDate();
+    if(d!==lastDay){lastDay=d;renderHero();renderCal();}
+  },1000);
+})();
+</script>
+</body>
+</html>
